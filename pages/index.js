@@ -19,6 +19,7 @@ const practices = {
 };
 
 export default function Home() {
+  // State
   const [selectedPractice, setSelectedPractice] = useState("Practice 1");
   const [selectedSentence, setSelectedSentence] = useState(practices["Practice 1"][0]);
   const [recording, setRecording] = useState(false);
@@ -29,7 +30,6 @@ export default function Home() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // Danh sách câu mẫu
   const sentences = practices[selectedPractice];
 
   // Bắt đầu ghi âm
@@ -66,7 +66,7 @@ export default function Home() {
     const url = URL.createObjectURL(audioBlob);
     setAudioURL(url);
 
-    // Chuyển Blob thành chuỗi Base64
+    // Chuyển Blob thành base64
     const reader = new FileReader();
     reader.readAsDataURL(audioBlob);
     reader.onloadend = async () => {
@@ -82,9 +82,7 @@ export default function Home() {
         });
         const data = await res.json();
 
-        // Log để kiểm tra dữ liệu trả về
         console.log("Speechace data:", data);
-
         setResults(data);
       } catch (err) {
         console.error("Lỗi khi đánh giá phát âm", err);
@@ -93,12 +91,11 @@ export default function Home() {
     };
   };
 
-  // Tải kết quả đánh giá
+  // Tải kết quả TXT
   const downloadResult = () => {
     let txtContent = "Kết quả đánh giá phát âm:\n\n";
     if (results) {
       txtContent += "==== Đánh giá từ thường ====\n";
-      // Sử dụng optional chaining
       results?.normalWords?.forEach(item => {
         txtContent += `${item.word}: ${item.score} - ${item.comment}\n`;
       });
@@ -117,6 +114,8 @@ export default function Home() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Phần mềm đánh giá phát âm</h1>
+      
+      {/* Chọn bài thực hành */}
       <div>
         <label>Chọn bài thực hành: </label>
         <select 
@@ -135,6 +134,8 @@ export default function Home() {
           ))}
         </select>
       </div>
+
+      {/* Hiển thị toàn bộ câu mẫu */}
       <div style={{ margin: '20px 0' }}>
         <h3>Chọn câu mẫu:</h3>
         {sentences.map((s, idx) => (
@@ -154,6 +155,7 @@ export default function Home() {
         ))}
       </div>
 
+      {/* Nút ghi âm */}
       <div style={{ margin: '20px 0' }}>
         {recording ? (
           <button onClick={stopRecording} style={{ padding: '10px 20px', fontSize: '16px' }}>
@@ -166,22 +168,24 @@ export default function Home() {
         )}
       </div>
 
+      {/* Thông báo lỗi */}
       {error && <div style={{ color: 'red' }}>{error}</div>}
+
+      {/* Audio preview */}
       {audioURL && (
         <div>
           <h3>Audio đã ghi</h3>
           <audio src={audioURL} controls />
         </div>
       )}
-      
-      {/* Hiển thị kết quả đánh giá (có kiểm tra dữ liệu) */}
+
+      {/* Kết quả đánh giá */}
       {results && (
         <div style={{ marginTop: '20px' }}>
           <h2>Kết quả đánh giá</h2>
           <div>
             <h3>Từ thường</h3>
             <ul>
-              {/* Sử dụng optional chaining để tránh lỗi .map trên undefined */}
               {results?.normalWords?.map((item, idx) => (
                 <li key={idx}>
                   {item.word}: {item.score} - {item.comment}
