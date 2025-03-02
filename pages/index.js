@@ -16,16 +16,23 @@ const practices = {
     "You can ‘find a lot of ‘useful ‘tips on this ‘website.",
     "They should ‘make an ‘outline for their ‘presentation."
   ]
-];
+};
 
 export default function Home() {
+  // State để chọn bài thực hành và câu mẫu
+  const [selectedPractice, setSelectedPractice] = useState("Practice 1");
+  const [selectedSentence, setSelectedSentence] = useState(practices["Practice 1"][0]);
+  
   const [recording, setRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
   const [results, setResults] = useState(null);
-  const [selectedSentence, setSelectedSentence] = useState(sentences[0]);
   const [error, setError] = useState(null);
+  
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  // Danh sách câu mẫu của bài thực hành đang chọn
+  const sentences = practices[selectedPractice];
 
   // Bắt đầu ghi âm bằng API MediaRecorder
   const startRecording = async () => {
@@ -108,6 +115,25 @@ export default function Home() {
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Phần mềm đánh giá phát âm</h1>
       <div>
+        <label>Chọn bài thực hành: </label>
+        <select 
+          value={selectedPractice}
+          onChange={e => {
+            const practice = e.target.value;
+            setSelectedPractice(practice);
+            // Khi thay đổi bài, cập nhật câu mẫu đầu tiên
+            setSelectedSentence(practices[practice][0]);
+          }}
+          style={{ fontSize: '16px', padding: '5px', margin: '10px' }}
+        >
+          {Object.keys(practices).map((practiceKey, idx) => (
+            <option key={idx} value={practiceKey}>
+              {practiceKey}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
         <label>Chọn câu mẫu: </label>
         <select 
           value={selectedSentence}
@@ -115,7 +141,9 @@ export default function Home() {
           style={{ fontSize: '16px', padding: '5px', margin: '10px' }}
         >
           {sentences.map((s, idx) => (
-            <option key={idx} value={s}>{s}</option>
+            <option key={idx} value={s}>
+              {s}
+            </option>
           ))}
         </select>
       </div>
