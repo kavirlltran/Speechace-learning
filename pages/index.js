@@ -1,12 +1,21 @@
 // pages/index.js
 import React, { useState, useRef } from 'react';
 
-const sentences = [
-  "We should ‘finish the ‘project for our ‘history ‘class.",
-  "‘Peter is re’vising for his e’xam ‘next ‘week.",
-  "‘Students will ‘spend more ‘time ‘working with ‘other ‘classmates.",
-  "I ‘like to ‘watch ‘videos that ‘help me ‘learn ‘new ‘things.",
-  "I have in’stalled some ‘apps on my ‘phone."
+const practices = {
+  "Practice 1": [
+    "We should ‘finish the ‘project for our ‘history ‘class.",
+    "‘Peter is re’vising for his e’xam ‘next ‘week.",
+    "‘Students will ‘spend more ‘time ‘working with ‘other ‘classmates.",
+    "I ‘like to ‘watch ‘videos that ‘help me ‘learn ‘new ‘things.",
+    "I have in’stalled some ‘apps on my ‘phone."
+  ],
+  "Practice 2": [
+    "Our ‘teacher ‘often ‘gives us ‘videos to ‘watch at ‘home.",
+    "I ‘never ‘read ‘books on my ‘tablet at ‘night.",
+    "It is a ‘new ‘way of ‘learning and ‘students ‘really ‘like it.",
+    "You can ‘find a lot of ‘useful ‘tips on this ‘website.",
+    "They should ‘make an ‘outline for their ‘presentation."
+  ]
 ];
 
 export default function Home() {
