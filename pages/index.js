@@ -19,22 +19,20 @@ const practices = {
 };
 
 export default function Home() {
-  // State để chọn bài thực hành và câu mẫu
   const [selectedPractice, setSelectedPractice] = useState("Practice 1");
   const [selectedSentence, setSelectedSentence] = useState(practices["Practice 1"][0]);
-  
   const [recording, setRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
-  
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // Lấy danh sách câu mẫu theo bài thực hành đã chọn
+  // Danh sách câu mẫu
   const sentences = practices[selectedPractice];
 
-  // Bắt đầu ghi âm bằng API MediaRecorder
+  // Bắt đầu ghi âm
   const startRecording = async () => {
     setResults(null);
     setError(null);
@@ -83,6 +81,10 @@ export default function Home() {
           })
         });
         const data = await res.json();
+
+        // Log để kiểm tra dữ liệu trả về
+        console.log("Speechace data:", data);
+
         setResults(data);
       } catch (err) {
         console.error("Lỗi khi đánh giá phát âm", err);
@@ -91,16 +93,17 @@ export default function Home() {
     };
   };
 
-  // Tải kết quả đánh giá về file TXT
+  // Tải kết quả đánh giá
   const downloadResult = () => {
     let txtContent = "Kết quả đánh giá phát âm:\n\n";
     if (results) {
       txtContent += "==== Đánh giá từ thường ====\n";
-      results.normalWords.forEach(item => {
+      // Sử dụng optional chaining
+      results?.normalWords?.forEach(item => {
         txtContent += `${item.word}: ${item.score} - ${item.comment}\n`;
       });
       txtContent += "\n==== Đánh giá từ trọng âm ====\n";
-      results.stressedWords.forEach(item => {
+      results?.stressedWords?.forEach(item => {
         txtContent += `${item.word}: Phát âm ${item.score} - Trọng âm ${item.stressScore} - ${item.comment}\n`;
       });
     }
@@ -114,8 +117,6 @@ export default function Home() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Phần mềm đánh giá phát âm</h1>
-      
-      {/* Chọn bài thực hành */}
       <div>
         <label>Chọn bài thực hành: </label>
         <select 
@@ -123,7 +124,6 @@ export default function Home() {
           onChange={e => {
             const practice = e.target.value;
             setSelectedPractice(practice);
-            // Khi thay đổi bài, cập nhật câu mẫu đầu tiên của bài đó
             setSelectedSentence(practices[practice][0]);
           }}
           style={{ fontSize: '16px', padding: '5px', margin: '10px' }}
@@ -135,8 +135,6 @@ export default function Home() {
           ))}
         </select>
       </div>
-
-      {/* Hiển thị toàn bộ câu mẫu của bài thực hành */}
       <div style={{ margin: '20px 0' }}>
         <h3>Chọn câu mẫu:</h3>
         {sentences.map((s, idx) => (
@@ -156,7 +154,6 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Ghi âm */}
       <div style={{ margin: '20px 0' }}>
         {recording ? (
           <button onClick={stopRecording} style={{ padding: '10px 20px', fontSize: '16px' }}>
@@ -176,13 +173,16 @@ export default function Home() {
           <audio src={audioURL} controls />
         </div>
       )}
+      
+      {/* Hiển thị kết quả đánh giá (có kiểm tra dữ liệu) */}
       {results && (
         <div style={{ marginTop: '20px' }}>
           <h2>Kết quả đánh giá</h2>
           <div>
             <h3>Từ thường</h3>
             <ul>
-              {results.normalWords.map((item, idx) => (
+              {/* Sử dụng optional chaining để tránh lỗi .map trên undefined */}
+              {results?.normalWords?.map((item, idx) => (
                 <li key={idx}>
                   {item.word}: {item.score} - {item.comment}
                 </li>
@@ -192,7 +192,7 @@ export default function Home() {
           <div>
             <h3>Từ trọng âm</h3>
             <ul>
-              {results.stressedWords.map((item, idx) => (
+              {results?.stressedWords?.map((item, idx) => (
                 <li key={idx}>
                   {item.word}: Phát âm {item.score} - Trọng âm {item.stressScore} - {item.comment}
                 </li>
