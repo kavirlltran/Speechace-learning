@@ -1,112 +1,159 @@
-import React, { useState } from 'react';
+// pages/index.js
+import React, { useState, useRef } from 'react';
 
-const practices = {
-  "Practice 1": [
-    "We should ‘finish the ‘project for our ‘history ‘class.",
-    "‘Peter is re’vising for his e’xam ‘next ‘week.",
-    "‘Students will ‘spend more ‘time ‘working with ‘other ‘classmates.",
-    "I ‘like to ‘watch ‘videos that ‘help me ‘learn ‘new ‘things.",
-    "I have in’stalled some ‘apps on my ‘phone."
-  ],
-  "Practice 2": [
-    "Our 'teacher 'often 'gives us 'videos to 'watch at 'home.",
-    "I 'never 'read 'books on my 'tablet at 'night.",
-    "It is a 'new 'way of 'learning and 'students 'really 'like it.",
-    "You can 'find a lot of 'useful 'tips on this 'website.",
-    "They should 'make an 'outline for their 'presentation."
-  ]
-};
+const sentences = [
+  "We should ‘finish the ‘project for our ‘history ‘class.",
+  "‘Peter is re’vising for his e’xam ‘next ‘week.",
+  "‘Students will ‘spend more ‘time ‘working with ‘other ‘classmates.",
+  "I ‘like to ‘watch ‘videos that ‘help me ‘learn ‘new ‘things.",
+  "I have in’stalled some ‘apps on my ‘phone."
+];
 
 export default function Home() {
-  // State để chọn Practice (mặc định là "Practice 1")
-  const [selectedPractice, setSelectedPractice] = useState("Practice 1");
-  // State để lưu câu đã chọn (giá trị gốc, giữ dấu)
-  const [selectedSentence, setSelectedSentence] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [audioURL, setAudioURL] = useState(null);
+  const [results, setResults] = useState(null);
+  const [selectedSentence, setSelectedSentence] = useState(sentences[0]);
+  const [error, setError] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
-  // Hàm loại bỏ dấu ' và ’ để hiển thị
-  const formatSentence = (sentence) => sentence.replace(/['’]/g, '');
-
-  // Xử lý thay đổi Practice (nếu người dùng thay đổi từ dropdown)
-  const handlePracticeChange = (event) => {
-    const practice = event.target.value;
-    setSelectedPractice(practice);
-    setSelectedSentence(null); // Reset câu đã chọn khi thay đổi practice
-  };
-
-  // Xử lý khi người dùng click chọn một câu
-  const handleSentenceClick = (sentence) => {
-    setSelectedSentence(sentence);
-  };
-
-  // Hàm bắt đầu ghi âm (bao gồm yêu cầu cấp quyền mic)
-  const handleStartRecording = async () => {
-    if (!selectedSentence) return;
+  // Bắt đầu ghi âm bằng API MediaRecorder
+  const startRecording = async () => {
+    setResults(null);
+    setError(null);
     try {
-      // Yêu cầu cấp quyền microphone
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log("Mic access granted", stream);
-      // Nếu quyền được cấp, bạn có thể tích hợp logic ghi âm ở đây.
-      alert("Đã cấp quyền mic. Bắt đầu ghi âm với câu đã chọn!");
-      // Ví dụ: Bạn có thể truyền 'selectedSentence' cùng với file audio đến API.
-    } catch (error) {
-      console.error("Không thể truy cập microphone:", error);
-      alert("Không thể truy cập microphone. Vui lòng cấp quyền và thử lại.");
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      mediaRecorderRef.current.onstop = handleStop;
+      mediaRecorderRef.current.start();
+      setRecording(true);
+    } catch (err) {
+      console.error("Không truy cập được microphone", err);
+      setError("Không truy cập được microphone");
     }
+  };
+
+  // Dừng ghi âm
+  const stopRecording = () => {
+    mediaRecorderRef.current.stop();
+    setRecording(false);
+  };
+
+  // Xử lý khi ghi âm dừng
+  const handleStop = async () => {
+    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+    const url = URL.createObjectURL(audioBlob);
+    setAudioURL(url);
+
+    // Chuyển Blob thành chuỗi Base64
+    const reader = new FileReader();
+    reader.readAsDataURL(audioBlob);
+    reader.onloadend = async () => {
+      const base64data = reader.result;
+      try {
+        const res = await fetch('/api/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            audio: base64data,
+            text: selectedSentence
+          })
+        });
+        const data = await res.json();
+        setResults(data);
+      } catch (err) {
+        console.error("Lỗi khi đánh giá phát âm", err);
+        setError("Lỗi khi đánh giá phát âm");
+      }
+    };
+  };
+
+  // Tải kết quả đánh giá về file TXT
+  const downloadResult = () => {
+    let txtContent = "Kết quả đánh giá phát âm:\n\n";
+    if (results) {
+      txtContent += "==== Đánh giá từ thường ====\n";
+      results.normalWords.forEach(item => {
+        txtContent += `${item.word}: ${item.score} - ${item.comment}\n`;
+      });
+      txtContent += "\n==== Đánh giá từ trọng âm ====\n";
+      results.stressedWords.forEach(item => {
+        txtContent += `${item.word}: Phát âm ${item.score} - Trọng âm ${item.stressScore} - ${item.comment}\n`;
+      });
+    }
+    const blob = new Blob([txtContent], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'ketqua.txt';
+    link.click();
   };
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Phần mềm đánh giá phát âm</h1>
-      
-      {/* Dropdown chọn Practice */}
-      <div style={{ marginBottom: '20px' }}>
-        <label htmlFor="practice-select" style={{ marginRight: '10px' }}>Chọn Practice:</label>
-        <select
-          id="practice-select"
-          value={selectedPractice}
-          onChange={handlePracticeChange}
-          style={{ fontSize: '16px', padding: '5px' }}
+      <div>
+        <label>Chọn câu mẫu: </label>
+        <select 
+          value={selectedSentence}
+          onChange={e => setSelectedSentence(e.target.value)}
+          style={{ fontSize: '16px', padding: '5px', margin: '10px' }}
         >
-          {Object.keys(practices).map((key, index) => (
-            <option key={index} value={key}>{key}</option>
+          {sentences.map((s, idx) => (
+            <option key={idx} value={s}>{s}</option>
           ))}
         </select>
       </div>
-      
-      {/* Hiển thị danh sách câu của Practice đã chọn */}
-      <div style={{ marginBottom: '20px' }}>
-        <h3>Nội dung {selectedPractice}:</h3>
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {practices[selectedPractice].map((sentence, index) => (
-            <li 
-              key={index}
-              onClick={() => handleSentenceClick(sentence)}
-              style={{
-                cursor: 'pointer',
-                padding: '8px',
-                marginBottom: '4px',
-                backgroundColor: selectedSentence === sentence ? '#d0eaff' : '#f0f0f0'
-              }}
-            >
-              {formatSentence(sentence)}
-            </li>
-          ))}
-        </ul>
+      <div style={{ margin: '20px 0' }}>
+        {recording ? (
+          <button onClick={stopRecording} style={{ padding: '10px 20px', fontSize: '16px' }}>
+            Dừng ghi âm
+          </button>
+        ) : (
+          <button onClick={startRecording} style={{ padding: '10px 20px', fontSize: '16px' }}>
+            Bắt đầu ghi âm
+          </button>
+        )}
       </div>
-      
-      {/* Nút bắt đầu ghi âm, chỉ bật khi có câu được chọn */}
-      <button 
-        onClick={handleStartRecording} 
-        disabled={!selectedSentence}
-        style={{ padding: '10px 20px', fontSize: '16px' }}
-      >
-        Bắt đầu đọc và ghi âm
-      </button>
-      
-      {/* Hiển thị câu đã chọn */}
-      {selectedSentence && (
-        <div style={{ marginTop: '20px', fontStyle: 'italic' }}>
-          <strong>Câu đã chọn:</strong> {formatSentence(selectedSentence)}
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      {audioURL && (
+        <div>
+          <h3>Audio đã ghi</h3>
+          <audio src={audioURL} controls />
+        </div>
+      )}
+      {results && (
+        <div style={{ marginTop: '20px' }}>
+          <h2>Kết quả đánh giá</h2>
+          <div>
+            <h3>Từ thường</h3>
+            <ul>
+              {results.normalWords.map((item, idx) => (
+                <li key={idx}>
+                  {item.word}: {item.score} - {item.comment}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3>Từ trọng âm</h3>
+            <ul>
+              {results.stressedWords.map((item, idx) => (
+                <li key={idx}>
+                  {item.word}: Phát âm {item.score} - Trọng âm {item.stressScore} - {item.comment}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button onClick={downloadResult} style={{ marginTop: '20px', padding: '10px 20px', fontSize: '16px' }}>
+            Tải kết quả TXT
+          </button>
         </div>
       )}
     </div>
