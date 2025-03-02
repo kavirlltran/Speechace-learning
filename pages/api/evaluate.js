@@ -1,21 +1,19 @@
 // pages/api/evaluate.js
 import FormData from 'form-data';
-import fetch from 'node-fetch'; // Nếu bạn dùng Next.js 15, cần cài và import node-fetch
+import fetch from 'node-fetch';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    res.status(405).json({ message: 'Method Not Allowed' });
-    return;
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   const { audio, text } = req.body;
   if (!audio || !text) {
-    res.status(400).json({ message: 'Missing audio or text data' });
-    return;
+    return res.status(400).json({ message: 'Missing audio or text data' });
   }
 
   try {
-    // Nếu audio ở dạng Data URL: "data:audio/webm;base64,...."
+    // Loại bỏ prefix "data:audio/webm;base64," (nếu có)
     const base64Pattern = /^data:audio\/\w+;base64,/;
     let base64Data = audio;
     if (base64Pattern.test(audio)) {
@@ -23,22 +21,19 @@ export default async function handler(req, res) {
     }
     const audioBuffer = Buffer.from(base64Data, 'base64');
 
-    // === Tạo form data ===
+    // Tạo form-data cho Speechace
     const formData = new FormData();
-    // ĐỔI 'audio' → 'voice_data' (theo tài liệu Speechace)
+    // QUAN TRỌNG: 'voice_data' mới đúng tham số cho text scoring
     formData.append('voice_data', audioBuffer, {
-      filename: 'audio.webm',
+      filename: 'audio.webm', // Nếu Speechace không hỗ trợ .webm, cần đổi sang .wav hoặc .mp3
       contentType: 'audio/webm'
     });
-    // Speechace yêu cầu 'text' là tham số chứa nội dung văn bản cần chấm
     formData.append('text', text);
 
-    // Thay thế bằng key của bạn
+    // Speechace key & endpoint
     const speechaceKey = "kzsoOXHxN1oTpzvi85wVqqZ9Mqg6cAwmHhiTvv/fcvLKGaWgcsQkEivJ4D+t9StzW1YpCgrZp8DsFSfEy3YApSRDshFr4FlY0gyQwJOa6bAVpzh6NnoVQC50w7m/YYHAv";
-    // Endpoint Text Scoring của Speechace (có dialect, user_id)
     const apiUrl = `https://api.speechace.co/api/scoring/text/v9/json?key=${encodeURIComponent(speechaceKey)}&dialect=en-us&user_id=XYZ-ABC-99001`;
 
-    // Gọi Speechace API
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: formData.getHeaders(),
@@ -47,18 +42,47 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Speechace API error:', errorText);
+      console.error("Speechace API error:", errorText);
       return res.status(500).json({ message: 'Speechace API error', error: errorText });
     }
 
-    // Kết quả trả về từ Speechace
     const speechaceResult = await response.json();
     console.log("speechaceResult:", speechaceResult);
 
-    // Trả nguyên kết quả (hoặc tuỳ chỉnh lại thành normalWords / stressedWords)
-    res.status(200).json(speechaceResult);
+    // === CHUYỂN ĐỔI DỮ LIỆU ===
+    // Mục tiêu: trả về { normalWords: [...], stressedWords: [...] } để giữ giao diện cũ.
+    // Tuỳ theo cấu trúc thực tế speechaceResult, bạn cần điều chỉnh logic tách từ.
+    const normalWords = [];
+    const stressedWords = [];
+
+    // Ví dụ: speechaceResult.pron_score_details.words là mảng các từ
+    const wordList = speechaceResult?.pron_score_details?.words || [];
+
+    wordList.forEach((w) => {
+      // Tự định nghĩa logic xác định "trọng âm"
+      // Ví dụ: nếu từ chứa ‘ hoặc ’ thì coi là trọng âm
+      const isStressed = w.word.includes('’') || w.word.includes('‘') || w.word.includes("'");
+      if (isStressed) {
+        stressedWords.push({
+          word: w.word,
+          // Speechace hay trả về overall_score
+          score: w.overall_score || 0,
+          stressScore: 100, // Tuỳ bạn
+          comment: "Từ có trọng âm"
+        });
+      } else {
+        normalWords.push({
+          word: w.word,
+          score: w.overall_score || 0,
+          comment: "Từ bình thường"
+        });
+      }
+    });
+
+    // Trả về cho client đúng cấu trúc cũ
+    return res.status(200).json({ normalWords, stressedWords });
   } catch (err) {
-    console.error('Evaluation error:', err);
-    res.status(500).json({ message: 'Evaluation error', error: err.toString() });
+    console.error("Evaluation error:", err);
+    return res.status(500).json({ message: 'Evaluation error', error: err.toString() });
   }
 }
