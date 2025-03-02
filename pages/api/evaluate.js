@@ -1,5 +1,6 @@
 // pages/api/evaluate.js
 import FormData from 'form-data';
+import fetch from 'node-fetch'; // Nếu bạn dùng Next.js 15, cần cài và import node-fetch
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,7 +15,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Xử lý audio base64 -> buffer
+    // Nếu audio ở dạng Data URL: "data:audio/webm;base64,...."
     const base64Pattern = /^data:audio\/\w+;base64,/;
     let base64Data = audio;
     if (base64Pattern.test(audio)) {
@@ -22,18 +23,22 @@ export default async function handler(req, res) {
     }
     const audioBuffer = Buffer.from(base64Data, 'base64');
 
-    // Tạo form data gửi lên Speechace
+    // === Tạo form data ===
     const formData = new FormData();
-    formData.append('audio', audioBuffer, {
+    // ĐỔI 'audio' → 'voice_data' (theo tài liệu Speechace)
+    formData.append('voice_data', audioBuffer, {
       filename: 'audio.webm',
       contentType: 'audio/webm'
     });
+    // Speechace yêu cầu 'text' là tham số chứa nội dung văn bản cần chấm
     formData.append('text', text);
 
-    // Gọi API Speechace
+    // Thay thế bằng key của bạn
     const speechaceKey = "kzsoOXHxN1oTpzvi85wVqqZ9Mqg6cAwmHhiTvv/fcvLKGaWgcsQkEivJ4D+t9StzW1YpCgrZp8DsFSfEy3YApSRDshFr4FlY0gyQwJOa6bAVpzh6NnoVQC50w7m/YYHAv";
+    // Endpoint Text Scoring của Speechace (có dialect, user_id)
     const apiUrl = `https://api.speechace.co/api/scoring/text/v9/json?key=${encodeURIComponent(speechaceKey)}&dialect=en-us&user_id=XYZ-ABC-99001`;
 
+    // Gọi Speechace API
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: formData.getHeaders(),
@@ -50,36 +55,8 @@ export default async function handler(req, res) {
     const speechaceResult = await response.json();
     console.log("speechaceResult:", speechaceResult);
 
-    // === CHUYỂN ĐỔI DỮ LIỆU ===
-    // Tuỳ vào cấu trúc JSON thực tế của speechaceResult
-    // Ví dụ: speechaceResult.pron_score_details.words = [ { word: "We", overall_score: 90 }, ... ]
-    const normalWords = [];
-    const stressedWords = [];
-
-    // Ví dụ logic: Mọi từ có length > 5 coi là stressed (chỉ minh hoạ)
-    if (speechaceResult?.pron_score_details?.words) {
-      speechaceResult.pron_score_details.words.forEach((w) => {
-        // Tuỳ vào logic bạn muốn
-        const isStressed = w.word.includes("’") || w.word.includes("‘"); 
-        if (isStressed) {
-          stressedWords.push({
-            word: w.word,
-            score: w.overall_score || 0,
-            stressScore: 100, // T tuỳ chỉnh
-            comment: "Từ có trọng âm"
-          });
-        } else {
-          normalWords.push({
-            word: w.word,
-            score: w.overall_score || 0,
-            comment: "Từ bình thường"
-          });
-        }
-      });
-    }
-
-    // Trả về đúng format mà client cần
-    res.status(200).json({ normalWords, stressedWords });
+    // Trả nguyên kết quả (hoặc tuỳ chỉnh lại thành normalWords / stressedWords)
+    res.status(200).json(speechaceResult);
   } catch (err) {
     console.error('Evaluation error:', err);
     res.status(500).json({ message: 'Evaluation error', error: err.toString() });
