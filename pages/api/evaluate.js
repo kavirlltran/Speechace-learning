@@ -18,11 +18,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing audio or text" });
   }
 
-  // Tách các từ và xác định loại từ.
-  // Quy ước: Nếu từ bắt đầu bằng ký tự ‘ (curly quote) hoặc ' (straight quote) thì đó là từ cần nhấn trọng âm.
+  // Tách câu thành các từ
+  // Nếu từ bắt đầu bằng ký tự ‘ (curly quote) hoặc ' (straight quote) thì đó là từ cần nhấn trọng âm.
   const words = text.split(/\s+/);
   const processedWords = words.map(rawWord => {
-    // Loại bỏ dấu câu
+    // Loại bỏ dấu câu (.,!?) khỏi từ
     const cleanWord = rawWord.replace(/[.,!?]/g, "");
     if (cleanWord.startsWith("‘") || cleanWord.startsWith("'")) {
       // Loại bỏ ký tự nhấn trọng âm ở đầu
@@ -74,10 +74,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Lỗi khi parse kết quả SpeechAce API" });
   }
 
-  // Mô phỏng kết quả đánh giá cho mỗi từ dựa trên processedWords
+  // Mô phỏng kết quả đánh giá cho từng từ dựa trên processedWords
   const evaluatedResults = processedWords.map(item => {
     if (item.stressed) {
-      // Giả lập điểm cho từ có trọng âm: phát âm và điểm nhấn trọng âm
+      // Giả lập điểm cho từ có trọng âm: điểm phát âm và điểm nhấn trọng âm
       const score = Math.floor(Math.random() * 21) + 80;      // 80-100
       const stressScore = Math.floor(Math.random() * 21) + 70;  // 70-90
       return { ...item, score, stressScore, comment: stressScore > 80 ? "Phát âm tốt và nhấn trọng âm đúng" : "Chưa nhấn đúng trọng âm" };
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
   const normalWords = evaluatedResults.filter(item => !item.stressed);
   const stressedWords = evaluatedResults.filter(item => item.stressed);
 
-  res.status(200).json({
+  return res.status(200).json({
     normalWords,
     stressedWords,
     rawApiResult: apiResult // (tùy chọn, dùng cho debug)
