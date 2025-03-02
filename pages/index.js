@@ -31,7 +31,7 @@ export default function Home() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // Danh sách câu mẫu của bài thực hành đang chọn
+  // Lấy danh sách câu mẫu theo bài thực hành đã chọn
   const sentences = practices[selectedPractice];
 
   // Bắt đầu ghi âm bằng API MediaRecorder
@@ -114,6 +114,8 @@ export default function Home() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Phần mềm đánh giá phát âm</h1>
+      
+      {/* Chọn bài thực hành */}
       <div>
         <label>Chọn bài thực hành: </label>
         <select 
@@ -121,7 +123,7 @@ export default function Home() {
           onChange={e => {
             const practice = e.target.value;
             setSelectedPractice(practice);
-            // Khi thay đổi bài, cập nhật câu mẫu đầu tiên
+            // Khi thay đổi bài, cập nhật câu mẫu đầu tiên của bài đó
             setSelectedSentence(practices[practice][0]);
           }}
           style={{ fontSize: '16px', padding: '5px', margin: '10px' }}
@@ -133,20 +135,28 @@ export default function Home() {
           ))}
         </select>
       </div>
-      <div>
-        <label>Chọn câu mẫu: </label>
-        <select 
-          value={selectedSentence}
-          onChange={e => setSelectedSentence(e.target.value)}
-          style={{ fontSize: '16px', padding: '5px', margin: '10px' }}
-        >
-          {sentences.map((s, idx) => (
-            <option key={idx} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+
+      {/* Hiển thị toàn bộ câu mẫu của bài thực hành */}
+      <div style={{ margin: '20px 0' }}>
+        <h3>Chọn câu mẫu:</h3>
+        {sentences.map((s, idx) => (
+          <div 
+            key={idx}
+            onClick={() => setSelectedSentence(s)}
+            style={{ 
+              cursor: 'pointer', 
+              padding: '10px', 
+              margin: '5px 0',
+              border: s === selectedSentence ? '2px solid blue' : '1px solid #ccc',
+              borderRadius: '4px'
+            }}
+          >
+            {s}
+          </div>
+        ))}
       </div>
+
+      {/* Ghi âm */}
       <div style={{ margin: '20px 0' }}>
         {recording ? (
           <button onClick={stopRecording} style={{ padding: '10px 20px', fontSize: '16px' }}>
@@ -158,6 +168,7 @@ export default function Home() {
           </button>
         )}
       </div>
+
       {error && <div style={{ color: 'red' }}>{error}</div>}
       {audioURL && (
         <div>
