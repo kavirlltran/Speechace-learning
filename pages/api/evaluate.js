@@ -1,3 +1,4 @@
+// pages/api/evaluate.js
 import FormData from 'form-data';
 
 export const config = {
@@ -18,14 +19,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing audio or text" });
   }
 
-  // Tách câu thành các từ
-  // Nếu từ bắt đầu bằng ký tự ‘ (curly quote) hoặc ' (straight quote) thì đó là từ cần nhấn trọng âm.
+  // Tách các từ và xác định loại từ
+  // Quy ước: nếu từ bắt đầu bằng ký tự ‘ thì đó là từ cần nhấn trọng âm
   const words = text.split(/\s+/);
   const processedWords = words.map(rawWord => {
-    // Loại bỏ dấu câu (.,!?) khỏi từ
+    // Loại bỏ dấu câu
     const cleanWord = rawWord.replace(/[.,!?]/g, "");
-    if (cleanWord.startsWith("‘") || cleanWord.startsWith("'")) {
-      // Loại bỏ ký tự nhấn trọng âm ở đầu
+    if (cleanWord.startsWith("‘")) {
       return { word: cleanWord.slice(1), stressed: true };
     }
     return { word: cleanWord, stressed: false };
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
   const base64Audio = audio.split(",")[1];
   const audioBuffer = Buffer.from(base64Audio, 'base64');
 
-  // Tạo FormData để gửi file đến SpeechAce
+  // Tạo FormData để gửi file
   const formData = new FormData();
   formData.append("audio_data", audioBuffer, {
     filename: "recording.webm",
@@ -47,13 +47,14 @@ export default async function handler(req, res) {
   });
   formData.append("text", text);
   formData.append("key", speechaceApiKey);
+  // Có thể thêm các tham số khác nếu cần (ví dụ: dialect, response type,...)
 
   let apiResponse;
   try {
     apiResponse = await fetch(speechaceUrl, {
       method: "POST",
       body: formData,
-      // Header Content-Type sẽ được formData tự thiết lập
+      // Lưu ý: header Content-Type sẽ được formData tự thiết lập
     });
   } catch (error) {
     console.error("Lỗi khi gọi SpeechAce API:", error);
@@ -66,6 +67,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "SpeechAce API trả về lỗi", details: errorText });
   }
 
+  // Lấy kết quả từ SpeechAce API (dạng JSON)
   let apiResult;
   try {
     apiResult = await apiResponse.json();
@@ -74,10 +76,21 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Lỗi khi parse kết quả SpeechAce API" });
   }
 
-  // Mô phỏng kết quả đánh giá cho từng từ dựa trên processedWords
+  // Ở đây, bạn cần xử lý dữ liệu trả về từ SpeechAce API để lấy điểm phát âm theo từ.
+  // Vì mỗi API có cấu trúc khác nhau, dưới đây là ví dụ mô phỏng dữ liệu đánh giá.
+  // Giả sử SpeechAce trả về kết quả với mảng các từ và điểm số ở cấp độ từ:
+  //
+  // apiResult.words = [
+  //    { word: "finish", score: 88, stress_score: 85 },
+  //    { word: "the", score: 92 },
+  //    ...
+  // ]
+  //
+  // Với mục đích demo, mình sẽ tạo dữ liệu giả dựa trên danh sách processedWords.
+
   const evaluatedResults = processedWords.map(item => {
     if (item.stressed) {
-      // Giả lập điểm cho từ có trọng âm: điểm phát âm và điểm nhấn trọng âm
+      // Mô phỏng: điểm phát âm và trọng âm
       const score = Math.floor(Math.random() * 21) + 80;      // 80-100
       const stressScore = Math.floor(Math.random() * 21) + 70;  // 70-90
       return { ...item, score, stressScore, comment: stressScore > 80 ? "Phát âm tốt và nhấn trọng âm đúng" : "Chưa nhấn đúng trọng âm" };
@@ -91,7 +104,8 @@ export default async function handler(req, res) {
   const normalWords = evaluatedResults.filter(item => !item.stressed);
   const stressedWords = evaluatedResults.filter(item => item.stressed);
 
-  return res.status(200).json({
+  // Trả kết quả về client
+  res.status(200).json({
     normalWords,
     stressedWords,
     rawApiResult: apiResult // (tùy chọn, dùng cho debug)
