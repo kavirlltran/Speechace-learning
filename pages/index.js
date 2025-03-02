@@ -18,39 +18,47 @@ const practices = {
 };
 
 export default function Home() {
-  // State để chọn practice (mặc định là "Practice 1")
+  // State để chọn Practice (mặc định là "Practice 1")
   const [selectedPractice, setSelectedPractice] = useState("Practice 1");
-  // State để lưu câu đã chọn (giá trị gốc, vẫn giữ dấu)
+  // State để lưu câu đã chọn (giá trị gốc, giữ dấu)
   const [selectedSentence, setSelectedSentence] = useState(null);
 
-  // Hàm để loại bỏ dấu ' và ’ khi hiển thị
+  // Hàm loại bỏ dấu ' và ’ để hiển thị
   const formatSentence = (sentence) => sentence.replace(/['’]/g, '');
 
-  // Xử lý khi thay đổi practice
+  // Xử lý thay đổi Practice (nếu người dùng thay đổi từ dropdown)
   const handlePracticeChange = (event) => {
     const practice = event.target.value;
     setSelectedPractice(practice);
-    setSelectedSentence(null); // reset câu đã chọn khi thay đổi practice
+    setSelectedSentence(null); // Reset câu đã chọn khi thay đổi practice
   };
 
-  // Xử lý khi người dùng click chọn một câu trong danh sách
+  // Xử lý khi người dùng click chọn một câu
   const handleSentenceClick = (sentence) => {
     setSelectedSentence(sentence);
   };
 
-  // Hàm xử lý khi người dùng bắt đầu ghi âm
-  const handleStartRecording = () => {
+  // Hàm bắt đầu ghi âm (bao gồm yêu cầu cấp quyền mic)
+  const handleStartRecording = async () => {
     if (!selectedSentence) return;
-    // Ở đây bạn tích hợp logic ghi âm và gửi dữ liệu (sử dụng selectedSentence gốc chứa dấu)
-    console.log("Bắt đầu ghi âm với câu:", selectedSentence);
-    // Ví dụ: gọi API để đánh giá phát âm, chuyển dữ liệu audio kèm selectedSentence
+    try {
+      // Yêu cầu cấp quyền microphone
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log("Mic access granted", stream);
+      // Nếu quyền được cấp, bạn có thể tích hợp logic ghi âm ở đây.
+      alert("Đã cấp quyền mic. Bắt đầu ghi âm với câu đã chọn!");
+      // Ví dụ: Bạn có thể truyền 'selectedSentence' cùng với file audio đến API.
+    } catch (error) {
+      console.error("Không thể truy cập microphone:", error);
+      alert("Không thể truy cập microphone. Vui lòng cấp quyền và thử lại.");
+    }
   };
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Phần mềm đánh giá phát âm</h1>
       
-      {/* Chọn Practice */}
+      {/* Dropdown chọn Practice */}
       <div style={{ marginBottom: '20px' }}>
         <label htmlFor="practice-select" style={{ marginRight: '10px' }}>Chọn Practice:</label>
         <select
@@ -60,14 +68,12 @@ export default function Home() {
           style={{ fontSize: '16px', padding: '5px' }}
         >
           {Object.keys(practices).map((key, index) => (
-            <option key={index} value={key}>
-              {key}
-            </option>
+            <option key={index} value={key}>{key}</option>
           ))}
         </select>
       </div>
       
-      {/* Hiển thị danh sách các câu của practice đã chọn */}
+      {/* Hiển thị danh sách câu của Practice đã chọn */}
       <div style={{ marginBottom: '20px' }}>
         <h3>Nội dung {selectedPractice}:</h3>
         <ul style={{ listStyle: 'none', padding: 0 }}>
@@ -88,7 +94,7 @@ export default function Home() {
         </ul>
       </div>
       
-      {/* Nút bắt đầu đọc và ghi âm, chỉ được kích hoạt khi đã chọn câu */}
+      {/* Nút bắt đầu ghi âm, chỉ bật khi có câu được chọn */}
       <button 
         onClick={handleStartRecording} 
         disabled={!selectedSentence}
@@ -96,8 +102,8 @@ export default function Home() {
       >
         Bắt đầu đọc và ghi âm
       </button>
-
-      {/* Hiển thị câu đã chọn (đã được format) */}
+      
+      {/* Hiển thị câu đã chọn */}
       {selectedSentence && (
         <div style={{ marginTop: '20px', fontStyle: 'italic' }}>
           <strong>Câu đã chọn:</strong> {formatSentence(selectedSentence)}
