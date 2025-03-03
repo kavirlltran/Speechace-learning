@@ -1,49 +1,30 @@
 // pages/index.js
 import React, { useState, useRef } from 'react';
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
 
-const ffmpeg = createFFmpeg({ log: false }); 
-// log: true nếu bạn muốn xem chi tiết quá trình ffmpeg chạy
+const sentences = [
+  "We should ‘finish the ‘project for our ‘history ‘class.",
+  "‘Peter is re’vising for his e’xam ‘next ‘week.",
+  "‘Students will ‘spend more ‘time ‘working with ‘other ‘classmates.",
+  "I ‘like to ‘watch ‘videos that ‘help me ‘learn ‘new ‘things.",
+  "I have in’stalled some ‘apps on my ‘phone."
+];
 
 export default function Home() {
   const [recording, setRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
+  const [results, setResults] = useState(null);
+  const [selectedSentence, setSelectedSentence] = useState(sentences[0]);
   const [error, setError] = useState(null);
-
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // Khởi tạo ffmpeg (chỉ cần load 1 lần)
-  const [isFFmpegLoaded, setIsFFmpegLoaded] = useState(false);
-  const loadFFmpeg = async () => {
-    if (!isFFmpegLoaded) {
-      await ffmpeg.load();
-      setIsFFmpegLoaded(true);
-    }
-  };
-
-  // Hàm chuyển webm -> wav bằng ffmpeg.wasm
-  const convertWebmToWav = async (webmBlob) => {
-    // 1. Ghi file đầu vào vào hệ thống ảo của ffmpeg
-    ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
-    // 2. Chạy lệnh ffmpeg: input.webm -> output.wav
-    await ffmpeg.run('-i', 'input.webm', 'output.wav');
-    // 3. Đọc file output.wav từ hệ thống ảo
-    const data = ffmpeg.FS('readFile', 'output.wav');
-    // 4. Tạo blob WAV
-    const wavBlob = new Blob([data.buffer], { type: 'audio/wav' });
-    return wavBlob;
-  };
-
-  // Bắt đầu ghi âm
+  // Bắt đầu ghi âm bằng API MediaRecorder
   const startRecording = async () => {
+    setResults(null);
     setError(null);
     try {
-      // Tải ffmpeg nếu chưa
-      await loadFFmpeg();
-
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -65,41 +46,28 @@ export default function Home() {
     setRecording(false);
   };
 
-  // Khi ghi âm dừng
+  // Xử lý khi ghi âm dừng
   const handleStop = async () => {
-    // Tạo 1 Blob .webm
-    const webmBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-    // Chuyển .webm -> .wav
-    let wavBlob;
-    try {
-      wavBlob = await convertWebmToWav(webmBlob);
-    } catch (err) {
-      console.error("Lỗi convert webm -> wav:", err);
-      setError("Lỗi convert webm -> wav");
-      return;
-    }
-
-    // Xem kết quả WAV
-    const url = URL.createObjectURL(wavBlob);
+    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+    const url = URL.createObjectURL(audioBlob);
     setAudioURL(url);
 
-    // Từ đây, bạn có thể convert sang base64 và gửi API
+    // Chuyển Blob thành chuỗi Base64
     const reader = new FileReader();
-    reader.readAsDataURL(wavBlob);
+    reader.readAsDataURL(audioBlob);
     reader.onloadend = async () => {
-      const base64Wav = reader.result;
-      // Gửi sang /api/evaluate
+      const base64data = reader.result;
       try {
         const res = await fetch('/api/evaluate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            audio: base64Wav,
-            text: "Hello world" // Hoặc câu bạn cần
+            audio: base64data,
+            text: selectedSentence
           })
         });
         const data = await res.json();
-        console.log("Speechace data:", data);
+        setResults(data);
       } catch (err) {
         console.error("Lỗi khi đánh giá phát âm", err);
         setError("Lỗi khi đánh giá phát âm");
@@ -107,20 +75,85 @@ export default function Home() {
     };
   };
 
-  return (
-    <div style={{ padding: '20px' }}>
-      <h1>Ghi âm .webm rồi chuyển sang .wav</h1>
-      {recording ? (
-        <button onClick={stopRecording}>Dừng ghi âm</button>
-      ) : (
-        <button onClick={startRecording}>Bắt đầu ghi âm</button>
-      )}
-      {error && <div style={{ color: 'red' }}>{error}</div>}
+  // Tải kết quả đánh giá về file TXT
+  const downloadResult = () => {
+    let txtContent = "Kết quả đánh giá phát âm:\n\n";
+    if (results) {
+      txtContent += "==== Đánh giá từ thường ====\n";
+      results.normalWords.forEach(item => {
+        txtContent += `${item.word}: ${item.score} - ${item.comment}\n`;
+      });
+      txtContent += "\n==== Đánh giá từ trọng âm ====\n";
+      results.stressedWords.forEach(item => {
+        txtContent += `${item.word}: Phát âm ${item.score} - Trọng âm ${item.stressScore} - ${item.comment}\n`;
+      });
+    }
+    const blob = new Blob([txtContent], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'ketqua.txt';
+    link.click();
+  };
 
+  return (
+    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
+      <h1>Phần mềm đánh giá phát âm</h1>
+      <div>
+        <label>Chọn câu mẫu: </label>
+        <select 
+          value={selectedSentence}
+          onChange={e => setSelectedSentence(e.target.value)}
+          style={{ fontSize: '16px', padding: '5px', margin: '10px' }}
+        >
+          {sentences.map((s, idx) => (
+            <option key={idx} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ margin: '20px 0' }}>
+        {recording ? (
+          <button onClick={stopRecording} style={{ padding: '10px 20px', fontSize: '16px' }}>
+            Dừng ghi âm
+          </button>
+        ) : (
+          <button onClick={startRecording} style={{ padding: '10px 20px', fontSize: '16px' }}>
+            Bắt đầu ghi âm
+          </button>
+        )}
+      </div>
+      {error && <div style={{ color: 'red' }}>{error}</div>}
       {audioURL && (
         <div>
-          <h3>File WAV sau khi convert:</h3>
+          <h3>Audio đã ghi</h3>
           <audio src={audioURL} controls />
+        </div>
+      )}
+      {results && (
+        <div style={{ marginTop: '20px' }}>
+          <h2>Kết quả đánh giá</h2>
+          <div>
+            <h3>Từ thường</h3>
+            <ul>
+              {results.normalWords.map((item, idx) => (
+                <li key={idx}>
+                  {item.word}: {item.score} - {item.comment}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3>Từ trọng âm</h3>
+            <ul>
+              {results.stressedWords.map((item, idx) => (
+                <li key={idx}>
+                  {item.word}: Phát âm {item.score} - Trọng âm {item.stressScore} - {item.comment}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button onClick={downloadResult} style={{ marginTop: '20px', padding: '10px 20px', fontSize: '16px' }}>
+            Tải kết quả TXT
+          </button>
         </div>
       )}
     </div>
