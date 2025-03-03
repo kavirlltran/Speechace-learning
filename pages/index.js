@@ -32,13 +32,19 @@ export default function Home() {
 
   const sentences = practices[selectedPractice];
 
-  // Bắt đầu ghi âm
+  // Bắt đầu ghi âm với cố gắng dùng audio/wav nếu được hỗ trợ
   const startRecording = async () => {
     setResults(null);
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      const options = { mimeType: 'audio/wav' };
+      try {
+        mediaRecorderRef.current = new MediaRecorder(stream, options);
+      } catch (e) {
+        console.warn("audio/wav không được hỗ trợ, sử dụng định dạng mặc định");
+        mediaRecorderRef.current = new MediaRecorder(stream);
+      }
       audioChunksRef.current = [];
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -62,11 +68,11 @@ export default function Home() {
 
   // Xử lý khi ghi âm dừng
   const handleStop = async () => {
-    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
     const url = URL.createObjectURL(audioBlob);
     setAudioURL(url);
 
-    // Chuyển Blob thành base64
+    // Chuyển Blob thành chuỗi Base64
     const reader = new FileReader();
     reader.readAsDataURL(audioBlob);
     reader.onloadend = async () => {
@@ -81,7 +87,6 @@ export default function Home() {
           })
         });
         const data = await res.json();
-
         console.log("Speechace data:", data);
         setResults(data);
       } catch (err) {
@@ -91,7 +96,7 @@ export default function Home() {
     };
   };
 
-  // Tải kết quả TXT
+  // Tải kết quả về file TXT
   const downloadResult = () => {
     let txtContent = "Kết quả đánh giá phát âm:\n\n";
     if (results) {
@@ -171,7 +176,7 @@ export default function Home() {
       {/* Thông báo lỗi */}
       {error && <div style={{ color: 'red' }}>{error}</div>}
 
-      {/* Audio preview */}
+      {/* Xem lại audio đã ghi */}
       {audioURL && (
         <div>
           <h3>Audio đã ghi</h3>
@@ -179,7 +184,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Kết quả đánh giá */}
+      {/* Hiển thị kết quả đánh giá */}
       {results && (
         <div style={{ marginTop: '20px' }}>
           <h2>Kết quả đánh giá</h2>
