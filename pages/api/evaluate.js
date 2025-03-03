@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Loại bỏ prefix "data:audio/webm;base64," (nếu có)
+    // Loại bỏ prefix "data:audio/xxx;base64," nếu có
     const base64Pattern = /^data:audio\/\w+;base64,/;
     let base64Data = audio;
     if (base64Pattern.test(audio)) {
@@ -21,16 +21,16 @@ export default async function handler(req, res) {
     }
     const audioBuffer = Buffer.from(base64Data, 'base64');
 
-    // Tạo form-data cho Speechace
+    // Tạo form-data gửi lên Speechace
     const formData = new FormData();
-    // QUAN TRỌNG: 'voice_data' mới đúng tham số cho text scoring
+    // QUAN TRỌNG: Sử dụng tên field "voice_data" và đặt file là audio.wav với contentType audio/wav
     formData.append('voice_data', audioBuffer, {
-      filename: 'audio.webm', // Nếu Speechace không hỗ trợ .webm, cần đổi sang .wav hoặc .mp3
-      contentType: 'audio/webm'
+      filename: 'audio.wav',
+      contentType: 'audio/wav'
     });
     formData.append('text', text);
 
-    // Speechace key & endpoint
+    // Speechace API Key & endpoint
     const speechaceKey = "kzsoOXHxN1oTpzvi85wVqqZ9Mqg6cAwmHhiTvv/fcvLKGaWgcsQkEivJ4D+t9StzW1YpCgrZp8DsFSfEy3YApSRDshFr4FlY0gyQwJOa6bAVpzh6NnoVQC50w7m/YYHAv";
     const apiUrl = `https://api.speechace.co/api/scoring/text/v9/json?key=${encodeURIComponent(speechaceKey)}&dialect=en-us&user_id=XYZ-ABC-99001`;
 
@@ -49,25 +49,19 @@ export default async function handler(req, res) {
     const speechaceResult = await response.json();
     console.log("speechaceResult:", speechaceResult);
 
-    // === CHUYỂN ĐỔI DỮ LIỆU ===
-    // Mục tiêu: trả về { normalWords: [...], stressedWords: [...] } để giữ giao diện cũ.
-    // Tuỳ theo cấu trúc thực tế speechaceResult, bạn cần điều chỉnh logic tách từ.
+    // CHUYỂN ĐỔI DỮ LIỆU: Tách danh sách từ thành normalWords và stressedWords
     const normalWords = [];
     const stressedWords = [];
 
-    // Ví dụ: speechaceResult.pron_score_details.words là mảng các từ
     const wordList = speechaceResult?.pron_score_details?.words || [];
-
     wordList.forEach((w) => {
-      // Tự định nghĩa logic xác định "trọng âm"
-      // Ví dụ: nếu từ chứa ‘ hoặc ’ thì coi là trọng âm
+      // Ví dụ: nếu từ chứa dấu trọng âm (‘ hoặc ’) hoặc dấu nháy đơn, coi là có trọng âm
       const isStressed = w.word.includes('’') || w.word.includes('‘') || w.word.includes("'");
       if (isStressed) {
         stressedWords.push({
           word: w.word,
-          // Speechace hay trả về overall_score
           score: w.overall_score || 0,
-          stressScore: 100, // Tuỳ bạn
+          stressScore: 100, // Bạn có thể tùy chỉnh logic chấm điểm trọng âm
           comment: "Từ có trọng âm"
         });
       } else {
@@ -79,7 +73,6 @@ export default async function handler(req, res) {
       }
     });
 
-    // Trả về cho client đúng cấu trúc cũ
     return res.status(200).json({ normalWords, stressedWords });
   } catch (err) {
     console.error("Evaluation error:", err);
