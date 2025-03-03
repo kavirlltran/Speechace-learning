@@ -1,4 +1,3 @@
-// pages/index.js
 import React, { useState, useRef } from 'react';
 
 const practices = {
@@ -30,22 +29,32 @@ export default function Home() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
+  // Danh sách câu mẫu cho bài đang chọn
   const sentences = practices[selectedPractice];
 
-  // Bắt đầu ghi âm (cố gắng dùng audio/wav nếu được hỗ trợ)
+  // Kiểm tra & bắt đầu ghi âm
   const startRecording = async () => {
     setResults(null);
     setError(null);
+
     try {
+      // Yêu cầu quyền microphone
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const options = { mimeType: 'audio/wav' };
-      try {
-        mediaRecorderRef.current = new MediaRecorder(stream, options);
-      } catch (e) {
-        console.warn("audio/wav không được hỗ trợ, sử dụng định dạng mặc định");
-        mediaRecorderRef.current = new MediaRecorder(stream);
+
+      // Kiểm tra xem trình duyệt có hỗ trợ 'audio/wav' không
+      let options = {};
+      if (MediaRecorder.isTypeSupported('audio/wav')) {
+        options = { mimeType: 'audio/wav' };
+        console.log("Trình duyệt hỗ trợ audio/wav, sẽ ghi âm .wav");
+      } else {
+        // Nếu không hỗ trợ .wav thì fallback sang .webm
+        console.warn("audio/wav không được hỗ trợ, sử dụng định dạng mặc định (audio/webm)");
+        options = { mimeType: 'audio/webm' };
       }
+
+      mediaRecorderRef.current = new MediaRecorder(stream, options);
       audioChunksRef.current = [];
+
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
@@ -54,6 +63,7 @@ export default function Home() {
       mediaRecorderRef.current.onstop = handleStop;
       mediaRecorderRef.current.start();
       setRecording(true);
+
     } catch (err) {
       console.error("Không truy cập được microphone", err);
       setError("Không truy cập được microphone");
@@ -62,18 +72,22 @@ export default function Home() {
 
   // Dừng ghi âm
   const stopRecording = () => {
-    mediaRecorderRef.current.stop();
-    setRecording(false);
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setRecording(false);
+    }
   };
 
-  // Xử lý khi ghi âm dừng
+  // Khi ghi âm dừng, chuyển audio Blob -> base64, gửi tới /api/evaluate
   const handleStop = async () => {
-    // Nếu dùng định dạng audio/wav thì đặt type 'audio/wav'
-    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+    // Lấy mimeType thực tế của MediaRecorder (có thể là .wav hoặc .webm)
+    const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm';
+
+    const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
     const url = URL.createObjectURL(audioBlob);
     setAudioURL(url);
 
-    // Chuyển Blob thành chuỗi Base64
+    // Chuyển sang base64
     const reader = new FileReader();
     reader.readAsDataURL(audioBlob);
     reader.onloadend = async () => {
@@ -97,7 +111,7 @@ export default function Home() {
     };
   };
 
-  // Tải kết quả về file TXT
+  // Tải kết quả TXT
   const downloadResult = () => {
     let txtContent = "Kết quả đánh giá phát âm:\n\n";
     if (results) {
