@@ -184,11 +184,44 @@ function PracticeBlock({ title, sentences }) {
 }
 
 export default function Home() {
+  const [selectedPractice, setSelectedPractice] = useState("practice1");
+
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>Phần mềm đánh giá phát âm</h1>
-      <PracticeBlock title="Practice 1" sentences={practice1Sentences} />
-      <PracticeBlock title="Practice 2" sentences={practice2Sentences} />
+      <div style={{ marginBottom: '20px' }}>
+        <button 
+          onClick={() => setSelectedPractice("practice1")}
+          style={{
+            padding: '10px 20px',
+            fontSize: '16px',
+            marginRight: '10px',
+            backgroundColor: selectedPractice === "practice1" ? '#ddd' : '#fff',
+            border: '1px solid #aaa',
+            cursor: 'pointer'
+          }}
+        >
+          Practice 1
+        </button>
+        <button 
+          onClick={() => setSelectedPractice("practice2")}
+          style={{
+            padding: '10px 20px',
+            fontSize: '16px',
+            backgroundColor: selectedPractice === "practice2" ? '#ddd' : '#fff',
+            border: '1px solid #aaa',
+            cursor: 'pointer'
+          }}
+        >
+          Practice 2
+        </button>
+      </div>
+      {selectedPractice === "practice1" && (
+        <PracticeBlock title="Practice 1" sentences={practice1Sentences} />
+      )}
+      {selectedPractice === "practice2" && (
+        <PracticeBlock title="Practice 2" sentences={practice2Sentences} />
+      )}
     </div>
   );
 }
