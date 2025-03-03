@@ -32,7 +32,7 @@ export default function Home() {
 
   const sentences = practices[selectedPractice];
 
-  // Bắt đầu ghi âm với cố gắng dùng audio/wav nếu được hỗ trợ
+  // Bắt đầu ghi âm (cố gắng dùng audio/wav nếu được hỗ trợ)
   const startRecording = async () => {
     setResults(null);
     setError(null);
@@ -68,6 +68,7 @@ export default function Home() {
 
   // Xử lý khi ghi âm dừng
   const handleStop = async () => {
+    // Nếu dùng định dạng audio/wav thì đặt type 'audio/wav'
     const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
     const url = URL.createObjectURL(audioBlob);
     setAudioURL(url);
@@ -176,7 +177,7 @@ export default function Home() {
       {/* Thông báo lỗi */}
       {error && <div style={{ color: 'red' }}>{error}</div>}
 
-      {/* Xem lại audio đã ghi */}
+      {/* Audio preview */}
       {audioURL && (
         <div>
           <h3>Audio đã ghi</h3>
@@ -184,7 +185,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Hiển thị kết quả đánh giá */}
+      {/* Kết quả đánh giá */}
       {results && (
         <div style={{ marginTop: '20px' }}>
           <h2>Kết quả đánh giá</h2>
