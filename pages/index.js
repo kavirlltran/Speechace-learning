@@ -1,5 +1,7 @@
 // pages/index.js
 import React, { useState, useRef } from 'react';
+// Nếu bạn đã cài đặt Recorder.js dưới dạng module, hãy import Recorder từ đó
+// import Recorder from '../utils/recorder'; // hoặc import theo cách bạn cấu hình
 
 const practice1Sentences = [
   "We should ‘finish the ‘project for our ‘history ‘class.",
@@ -23,8 +25,9 @@ function PracticeBlock({ title, sentences }) {
   const [audioURL, setAudioURL] = useState(null);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const recorderRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const mediaStreamRef = useRef(null);
 
   const startRecording = async () => {
     setResults(null);
@@ -35,15 +38,12 @@ function PracticeBlock({ title, sentences }) {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      mediaRecorderRef.current.onstop = handleStop;
-      mediaRecorderRef.current.start();
+      mediaStreamRef.current = stream;
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const input = audioContextRef.current.createMediaStreamSource(stream);
+      // Khởi tạo Recorder với workerPath trỏ tới recorderWorker.js
+      recorderRef.current = new Recorder(input, { workerPath: '/recorderWorker.js' });
+      recorderRef.current.record();
       setRecording(true);
     } catch (err) {
       console.error("Không truy cập được microphone", err);
@@ -52,48 +52,49 @@ function PracticeBlock({ title, sentences }) {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
+    if (recorderRef.current) {
+      recorderRef.current.stop();
       setRecording(false);
+      // Dừng tất cả audio track
+      mediaStreamRef.current.getAudioTracks().forEach(track => track.stop());
+      recorderRef.current.exportWAV(async (blob) => {
+        const url = URL.createObjectURL(blob);
+        setAudioURL(url);
+
+        // Chuyển blob WAV sang base64
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          const base64data = reader.result;
+          try {
+            const res = await fetch('/api/evaluate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                audio: base64data,
+                text: selectedSentence
+              })
+            });
+            const data = await res.json();
+            setResults(data);
+          } catch (err) {
+            console.error("Lỗi khi đánh giá phát âm", err);
+            setError("Lỗi khi đánh giá phát âm");
+          }
+        };
+      });
     }
   };
 
-  const handleStop = async () => {
-    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-    const url = URL.createObjectURL(audioBlob);
-    setAudioURL(url);
-
-    const reader = new FileReader();
-    reader.readAsDataURL(audioBlob);
-    reader.onloadend = async () => {
-      const base64data = reader.result;
-      try {
-        const res = await fetch('/api/evaluate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            audio: base64data,
-            text: selectedSentence
-          })
-        });
-        const data = await res.json();
-        setResults(data);
-      } catch (err) {
-        console.error("Lỗi khi đánh giá phát âm", err);
-        setError("Lỗi khi đánh giá phát âm");
-      }
-    };
-  };
-
-  const downloadResult = () => {
+  function downloadResult() {
     let txtContent = "Kết quả đánh giá phát âm:\n\n";
     if (results) {
       txtContent += "==== Đánh giá từ thường ====\n";
-      results.normalWords.forEach(item => {
+      results.normalWords && results.normalWords.forEach(item => {
         txtContent += `${item.word}: ${item.score} - ${item.comment}\n`;
       });
       txtContent += "\n==== Đánh giá từ trọng âm ====\n";
-      results.stressedWords.forEach(item => {
+      results.stressedWords && results.stressedWords.forEach(item => {
         txtContent += `${item.word}: Phát âm ${item.score} - Trọng âm ${item.stressScore} - ${item.comment}\n`;
       });
     }
@@ -102,7 +103,7 @@ function PracticeBlock({ title, sentences }) {
     link.href = URL.createObjectURL(blob);
     link.download = 'ketqua.txt';
     link.click();
-  };
+  }
 
   return (
     <div style={{ border: '1px solid #ccc', padding: '20px', marginBottom: '20px' }}>
@@ -157,7 +158,7 @@ function PracticeBlock({ title, sentences }) {
           <div>
             <h4>Từ thường</h4>
             <ul>
-              {results.normalWords.map((item, idx) => (
+              {results.normalWords && results.normalWords.map((item, idx) => (
                 <li key={idx}>
                   {item.word}: {item.score} - {item.comment}
                 </li>
@@ -167,7 +168,7 @@ function PracticeBlock({ title, sentences }) {
           <div>
             <h4>Từ trọng âm</h4>
             <ul>
-              {results.stressedWords.map((item, idx) => (
+              {results.stressedWords && results.stressedWords.map((item, idx) => (
                 <li key={idx}>
                   {item.word}: Phát âm {item.score} - Trọng âm {item.stressScore} - {item.comment}
                 </li>
